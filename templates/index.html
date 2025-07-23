@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>S4 Invoice Generator</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        line-height: 1.6;
+        background-color: #f4f4f4;
+        color: #333;
+        margin: 0;
+        padding: 20px;
+      }
+      .container {
+        max-width: 900px;
+        margin: 20px auto;
+        background: #fff;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+      }
+      h1,
+      h2 {
+        color: #0056b3;
+      }
+      h1 {
+        text-align: center;
+        border-bottom: 2px solid #eee;
+        padding-bottom: 20px;
+      }
+      .form-group {
+        margin-bottom: 20px;
+      }
+      label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 5px;
+      }
+      input[type="text"],
+      select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+      .product-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+      .product-table th,
+      .product-table td {
+        border: 1px solid #ddd;
+        padding: 12px;
+        text-align: left;
+      }
+      .product-table th {
+        background-color: #0056b3;
+        color: white;
+      }
+      .product-table tr:nth-child(even) {
+        background-color: #f2f2f2;
+      }
+      .quantity-input {
+        width: 80px;
+        padding: 8px;
+        text-align: center;
+      }
+      .submit-btn {
+        display: block;
+        width: 100%;
+        background: #28a745;
+        color: white;
+        padding: 15px;
+        border: none;
+        border-radius: 5px;
+        font-size: 18px;
+        cursor: pointer;
+        text-align: center;
+        text-decoration: none;
+      }
+      .submit-btn:hover {
+        background: #218838;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Invoice Generator</h1>
+
+      <form action="/" method="POST">
+        <h2>1. Invoice Details</h2>
+        <div class="form-group">
+          <label for="client">Select Client:</label>
+          <select id="client" name="client" required>
+            <option value="">-- Please choose a client --</option>
+            {% for client in clients %}
+            <option value="{{ client['Company Name'] }}">
+              {{ client['Company Name'] }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="invoice_no">Invoice Number:</label>
+          <input type="text" id="invoice_no" name="invoice_no" required />
+        </div>
+
+        <div class="form-group">
+          <label for="po_number">Purchase Order Number (Optional):</label>
+          <input type="text" id="po_number" name="po_number" />
+        </div>
+
+        <h2>2. Select Products and Quantities</h2>
+        <table class="product-table">
+          <thead>
+            <tr>
+              <th>Product Description</th>
+              <th>HSN/SAC</th>
+              <th>GST Rate</th>
+              <th style="text-align: center">Quantity</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for product in products %}
+            <tr>
+              <td>{{ product.Description }}</td>
+              <td>{{ product.HSN_SAC }}</td>
+              <td>{{ product.GSt_Rate }}%</td>
+              <td style="text-align: center">
+                <input
+                  type="number"
+                  class="quantity-input"
+                  name="qty_{{ loop.index0 }}"
+                  placeholder="0"
+                  min="0"
+                  step="any"
+                />
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <br />
+        <button type="submit" class="submit-btn">Generate PDF Invoice</button>
+      </form>
+    </div>
+  </body>
+</html>
