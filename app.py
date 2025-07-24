@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, jsonify
 import pandas as pd
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
@@ -73,7 +73,7 @@ def calculate_invoice(client, items, pricing_df):
     return {'items': processed_items, 'subtotal': subtotal, 'tax_details': tax_details, 'total_tax': total_tax, 'grand_total': grand_total}
 
 
-# --- ★★★ FIXED PDF ENGINE WITH PERFECTLY ALIGNED COLUMN WIDTHS ★★★ ---
+# --- ★★★ COMPLETED PDF ENGINE WITH PERFECTLY ALIGNED COLUMN WIDTHS ★★★ ---
 def generate_pdf_invoice(client, invoice_data, transactional_details):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
@@ -272,7 +272,7 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
         Paragraph('<b>0.00</b>', ParagraphStyle('RoundOff', parent=style_bold, alignment=TA_RIGHT))
     ])
     
-    # FIXED: Using "Rs." instead of rupee symbol to avoid encoding issues
+    # Using "Rs." instead of rupee symbol to avoid encoding issues
     items_data.append([
         '', '', '', '', '', '',
         Paragraph('<b>Total</b>', style_bold),
@@ -296,11 +296,10 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
     items_height = items_table._height
     items_table.drawOn(c, left_margin, items_y_start - items_height)
     
-    # 6. Amount in Words Section - MODIFIED FOR LAKHS
+    # 6. Amount in Words Section
     words_y_start = items_y_start - items_height - 0.5*mm
     
     def convert_to_indian_words(amount):
-        # This function remains the same
         amount = int(amount)
         if amount == 0: return "Zero"
         ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"]
@@ -369,7 +368,7 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
     tax_words_height = tax_words_table._height
     tax_words_table.drawOn(c, left_margin, tax_words_y_start - tax_words_height)
     
-    # 9. Declaration and Signature Table (SEPARATE TABLE BELOW TAX TABLE)
+    # 9. Declaration and Signature Table
     declaration_y_start = tax_words_y_start - tax_words_height - 0.5*mm
     
     declaration_data = [
@@ -381,6 +380,7 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
     
     declaration_table = Table(declaration_data, colWidths=[120*mm, 60*mm])
     declaration_table.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 1, colors.black),
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
         ('LEFTPADDING', (0,0), (-1,-1), 3),
         ('RIGHTPADDING', (0,0), (-1,-1), 3),
@@ -389,41 +389,117 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
     ]))
     
     declaration_table.wrapOn(c, width, height)
-    declaration_table_height = declaration_table._height
-
-    position_after_content = declaration_y_start - declaration_table_height
-    bottom_anchor_position = 15 * mm 
-    declaration_position = max(position_after_content, bottom_anchor_position)
-    
-    declaration_table.drawOn(c, left_margin, declaration_position)
-
-    # 10. Computer Generated Invoice Text - At the very bottom
-    footer_text_y = 12*mm
-    c.setFont('Helvetica', 9)
-    c.drawCentredString(width / 2.0, footer_text_y, "This is Computer Generated Invoice")
+    declaration_height = declaration_table._height
+    declaration_table.drawOn(c, left_margin, declaration_y_start - declaration_height)
     
     c.save()
     buffer.seek(0)
     return buffer
 
-# --- Flask Routes & Main Logic (No Changes) ---
-@app.route('/', methods=['GET', 'POST'])
+# --- NEW: API endpoint to get company-specific products ---
+@app.route('/api/company-products/<company_name>')
+def get_company_products(company_name):
+    """Return products available for a specific company"""
+    try:
+        clients_df, products_df, pricing_df = load_data()
+        if pricing_df is None:
+            return jsonify({'error': 'Could not load pricing data'}), 500
+        
+        # Get products for this company
+        company_products = pricing_df[pricing_df['CompanyName'] == company_name]['ProductDescription'].unique()
+        
+        # Filter products_df to only include available products
+        available_products = products_df[products_df['Description'].isin(company_products)]
+        
+        # Convert to list of dictionaries
+        products_list = available_products.to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'products': products_list
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# --- Main Routes ---
+@app.route('/')
 def index():
     clients_df, products_df, pricing_df = load_data()
-    if request.method == 'POST':
-        client_name = request.form['client']; invoice_no = request.form['invoice_no']; po_number = request.form['po_number']
-        selected_client = clients_df[clients_df['Company Name'] == client_name].iloc[0]
-        selected_items = []
-        for index, product in products_df.iterrows():
-            quantity = request.form.get(f"qty_{index}")
-            if quantity and float(quantity) > 0: selected_items.append({'product': product.to_dict(), 'quantity': quantity})
-        if not selected_items: return "Error: No products were selected. Please go back and select at least one item."
-        transactional_details = {'invoice_no': invoice_no, 'po_number': po_number, 'invoice_date': datetime.date.today().strftime("%d-%b-%Y")}
-        invoice_data = calculate_invoice(selected_client, selected_items, pricing_df)
-        pdf_buffer = generate_pdf_invoice(selected_client, invoice_data, transactional_details)
-        return send_file(pdf_buffer, as_attachment=True, download_name=f"Invoice-{invoice_no.replace('/', '-')}.pdf", mimetype='application/pdf')
-    return render_template('index.html', clients=clients_df.to_dict('records'), products=products_df.to_dict('records'))
+    if clients_df is None:
+        return "Error loading data files. Please check if CSV files exist."
+    
+    clients = clients_df.to_dict('records')
+    products = products_df.to_dict('records')
+    
+    return render_template('index.html', clients=clients, products=products)
+
+@app.route('/', methods=['POST'])
+def generate_invoice():
+    try:
+        clients_df, products_df, pricing_df = load_data()
+        if clients_df is None:
+            return "Error loading data files."
+        
+        # Get form data
+        client_name = request.form.get('client')
+        invoice_no = request.form.get('invoice_no')
+        po_number = request.form.get('po_number', '')
+        
+        # Find client
+        client_row = clients_df[clients_df['Company Name'] == client_name]
+        if client_row.empty:
+            return f"Client '{client_name}' not found."
+        
+        client = client_row.iloc[0].to_dict()
+        
+        # Process products and quantities from dynamic form
+        items = []
+        form_data = request.form.to_dict()
+        
+        # Extract product information from hidden fields
+        i = 0
+        while f'qty_{i}' in form_data:
+            quantity = form_data.get(f'qty_{i}', '0')
+            
+            if quantity and float(quantity) > 0:
+                product = {
+                    'Description': form_data.get(f'product_desc_{i}'),
+                    'HSN_SAC': form_data.get(f'product_hsn_{i}'),
+                    'GSt_Rate': float(form_data.get(f'product_gst_{i}', 0)),
+                    'Unit': form_data.get(f'product_unit_{i}')
+                }
+                
+                items.append({
+                    'product': product,
+                    'quantity': float(quantity)
+                })
+            i += 1
+        
+        if not items:
+            return "No products selected or quantities are zero."
+        
+        # Calculate invoice
+        invoice_data = calculate_invoice(client, items, pricing_df)
+        
+        # Generate PDF
+        transactional_details = {
+            'invoice_no': invoice_no,
+            'invoice_date': datetime.datetime.now().strftime('%d/%m/%Y'),
+            'po_number': po_number
+        }
+        
+        pdf_buffer = generate_pdf_invoice(client, invoice_data, transactional_details)
+        
+        return send_file(
+            pdf_buffer,
+            as_attachment=True,
+            download_name=f'Invoice_{invoice_no}_{client_name.replace(" ", "_")}.pdf',
+            mimetype='application/pdf'
+        )
+        
+    except Exception as e:
+        return f"Error generating invoice: {str(e)}"
 
 if __name__ == '__main__':
-    print("--- Starting Invoice Generator Web UI (HCL Unified Table Layout) ---"); print("Open your web browser and go to: http://127.0.0.1:5000")
-    app.run(debug=False)
+    app.run(debug=True)

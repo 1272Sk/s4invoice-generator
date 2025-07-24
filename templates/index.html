@@ -86,14 +86,31 @@
       .submit-btn:hover {
         background: #218838;
       }
+      .submit-btn:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+      }
+      
+      .loading {
+        text-align: center;
+        padding: 20px;
+        color: #666;
+      }
+      
+      .no-products {
+        text-align: center;
+        padding: 20px;
+        color: #dc3545;
+        font-style: italic;
+      }
 
       /* --- START OF MOBILE RESPONSIVE STYLES --- */
       @media screen and (max-width: 768px) {
         body {
-          padding: 0; /* Remove padding from body on small screens */
+          padding: 0;
         }
         .container {
-          padding: 15px; /* Reduce padding for the main container */
+          padding: 15px;
           margin: 0;
           border-radius: 0;
           box-shadow: none;
@@ -105,7 +122,6 @@
           font-size: 1.4em;
         }
 
-        /* Responsive Table: Hide header and transform rows into cards */
         .product-table thead {
           display: none;
         }
@@ -117,14 +133,13 @@
         }
         .product-table td {
           display: block;
-          text-align: right; /* Align data to the right */
+          text-align: right;
           border: none;
           border-bottom: 1px solid #eee;
           position: relative;
-          padding-left: 50%; /* Create space for the label */
+          padding-left: 50%;
         }
         .product-table td::before {
-          /* This is the label, pulled from the data-label attribute */
           content: attr(data-label);
           position: absolute;
           left: 10px;
@@ -138,7 +153,7 @@
           border-bottom: 0;
         }
         .quantity-input {
-          width: 100px; /* Make the quantity input slightly larger */
+          width: 100px;
         }
       }
       /* --- END OF MOBILE RESPONSIVE STYLES --- */
@@ -148,7 +163,7 @@
     <div class="container">
       <h1>Invoice Generator</h1>
 
-      <form action="/" method="POST">
+      <form action="/" method="POST" id="invoiceForm">
         <h2>1. Invoice Details</h2>
         <div class="form-group">
           <label for="client">Select Client:</label>
@@ -173,38 +188,121 @@
         </div>
 
         <h2>2. Select Products and Quantities</h2>
-        <table class="product-table">
-          <thead>
-            <tr>
-              <th>Product Description</th>
-              <th>HSN/SAC</th>
-              <th>GST Rate</th>
-              <th style="text-align: center">Quantity</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for product in products %}
-            <tr>
-              <td data-label="Product">{{ product.Description }}</td>
-              <td data-label="HSN/SAC">{{ product.HSN_SAC }}</td>
-              <td data-label="GST Rate">{{ product.GSt_Rate }}%</td>
-              <td data-label="Quantity">
-                <input
-                  type="number"
-                  class="quantity-input"
-                  name="qty_{{ loop.index0 }}"
-                  placeholder="0"
-                  min="0"
-                  step="any"
-                />
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <div id="productsContainer">
+          <div class="no-products">
+            Please select a client first to see available products.
+          </div>
+        </div>
+        
         <br />
-        <button type="submit" class="submit-btn">Generate PDF Invoice</button>
+        <button type="submit" class="submit-btn" id="submitBtn" disabled>
+          Generate PDF Invoice
+        </button>
       </form>
     </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        const clientSelect = document.getElementById('client');
+        const productsContainer = document.getElementById('productsContainer');
+        const submitBtn = document.getElementById('submitBtn');
+        
+        clientSelect.addEventListener('change', function() {
+          const selectedClient = this.value;
+          
+          if (!selectedClient) {
+            productsContainer.innerHTML = '<div class="no-products">Please select a client first to see available products.</div>';
+            submitBtn.disabled = true;
+            return;
+          }
+          
+          // Show loading state
+          productsContainer.innerHTML = '<div class="loading">Loading products...</div>';
+          submitBtn.disabled = true;
+          
+          // Fetch company-specific products
+          fetch(`/api/company-products/${encodeURIComponent(selectedClient)}`)
+            .then(response => response.json())
+            .then(data => {
+              if (data.success && data.products.length > 0) {
+                displayProducts(data.products);
+                submitBtn.disabled = false;
+              } else {
+                productsContainer.innerHTML = '<div class="no-products">No products available for this client.</div>';
+                submitBtn.disabled = true;
+              }
+            })
+            .catch(error => {
+              console.error('Error fetching products:', error);
+              productsContainer.innerHTML = '<div class="no-products">Error loading products. Please try again.</div>';
+              submitBtn.disabled = true;
+            });
+        });
+        
+        function displayProducts(products) {
+          let tableHTML = `
+            <table class="product-table">
+              <thead>
+                <tr>
+                  <th>Product Description</th>
+                  <th>HSN/SAC</th>
+                  <th>GST Rate</th>
+                  <th style="text-align: center">Quantity</th>
+                </tr>
+              </thead>
+              <tbody>
+          `;
+          
+          products.forEach((product, index) => {
+            tableHTML += `
+              <tr>
+                <td data-label="Product">${product.Description}</td>
+                <td data-label="HSN/SAC">${product.HSN_SAC}</td>
+                <td data-label="GST Rate">${product.GSt_Rate}%</td>
+                <td data-label="Quantity">
+                  <input
+                    type="number"
+                    class="quantity-input"
+                    name="qty_${index}"
+                    placeholder="0"
+                    min="0"
+                    step="any"
+                  />
+                  <input type="hidden" name="product_desc_${index}" value="${product.Description}" />
+                  <input type="hidden" name="product_hsn_${index}" value="${product.HSN_SAC}" />
+                  <input type="hidden" name="product_gst_${index}" value="${product.GSt_Rate}" />
+                  <input type="hidden" name="product_unit_${index}" value="${product.Unit}" />
+                </td>
+              </tr>
+            `;
+          });
+          
+          tableHTML += `
+              </tbody>
+            </table>
+          `;
+          
+          productsContainer.innerHTML = tableHTML;
+        }
+        
+        // Form validation before submit
+        document.getElementById('invoiceForm').addEventListener('submit', function(e) {
+          const quantities = document.querySelectorAll('.quantity-input');
+          let hasQuantity = false;
+          
+          quantities.forEach(input => {
+            if (input.value && parseFloat(input.value) > 0) {
+              hasQuantity = true;
+            }
+          });
+          
+          if (!hasQuantity) {
+            e.preventDefault();
+            alert('Please enter at least one product quantity greater than 0.');
+            return false;
+          }
+        });
+      });
+    </script>
   </body>
 </html>
