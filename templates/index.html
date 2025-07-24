@@ -86,6 +86,62 @@
       .submit-btn:hover {
         background: #218838;
       }
+
+      /* --- START OF MOBILE RESPONSIVE STYLES --- */
+      @media screen and (max-width: 768px) {
+        body {
+          padding: 0; /* Remove padding from body on small screens */
+        }
+        .container {
+          padding: 15px; /* Reduce padding for the main container */
+          margin: 0;
+          border-radius: 0;
+          box-shadow: none;
+        }
+        h1 {
+          font-size: 1.8em;
+        }
+        h2 {
+          font-size: 1.4em;
+        }
+
+        /* Responsive Table: Hide header and transform rows into cards */
+        .product-table thead {
+          display: none;
+        }
+        .product-table tr {
+          display: block;
+          margin-bottom: 1em;
+          border: 1px solid #ddd;
+          border-radius: 5px;
+        }
+        .product-table td {
+          display: block;
+          text-align: right; /* Align data to the right */
+          border: none;
+          border-bottom: 1px solid #eee;
+          position: relative;
+          padding-left: 50%; /* Create space for the label */
+        }
+        .product-table td::before {
+          /* This is the label, pulled from the data-label attribute */
+          content: attr(data-label);
+          position: absolute;
+          left: 10px;
+          width: 45%;
+          padding-right: 10px;
+          white-space: nowrap;
+          text-align: left;
+          font-weight: bold;
+        }
+        .product-table td:last-child {
+          border-bottom: 0;
+        }
+        .quantity-input {
+          width: 100px; /* Make the quantity input slightly larger */
+        }
+      }
+      /* --- END OF MOBILE RESPONSIVE STYLES --- */
     </style>
   </head>
   <body>
@@ -129,10 +185,10 @@
           <tbody>
             {% for product in products %}
             <tr>
-              <td>{{ product.Description }}</td>
-              <td>{{ product.HSN_SAC }}</td>
-              <td>{{ product.GSt_Rate }}%</td>
-              <td style="text-align: center">
+              <td data-label="Product">{{ product.Description }}</td>
+              <td data-label="HSN/SAC">{{ product.HSN_SAC }}</td>
+              <td data-label="GST Rate">{{ product.GSt_Rate }}%</td>
+              <td data-label="Quantity">
                 <input
                   type="number"
                   class="quantity-input"
