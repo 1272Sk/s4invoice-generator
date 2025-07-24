@@ -86,9 +86,12 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
     
     left_margin, right_margin, top_margin, bottom_margin = 15*mm, 15*mm, 5*mm, 35*mm
     
-    # 1. Header - Title (Tax Invoice)
+    # 1. Header - Title (Tax Invoice or SEZ Invoice based on client tax type)
     c.setFont('Helvetica-Bold', 16)
-    c.drawCentredString(width / 2.0, height - top_margin - 0*mm, "Tax Invoice")
+    if client.get('TaxType') == 'IGST':
+        c.drawCentredString(width / 2.0, height - top_margin - 0*mm, "SEZ Invoice")
+    else:
+        c.drawCentredString(width / 2.0, height - top_margin - 0*mm, "Tax Invoice")
     
     # 2. Company Name and Invoice Details Header
     company_header_y = height - top_margin - 1*mm
@@ -335,7 +338,7 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
             igst_amount = taxable_value * (tax_rate / 100)
             tax_data.append([Paragraph(hsn, style_small), Paragraph(f"{taxable_value:.2f}", ParagraphStyle('TaxValue', parent=style_small, alignment=TA_RIGHT)), Paragraph(f"{tax_rate:.1f}%", ParagraphStyle('TaxRate', parent=style_small, alignment=TA_CENTER)), Paragraph(f"{igst_amount:.2f}", ParagraphStyle('TaxAmount', parent=style_small, alignment=TA_RIGHT)), Paragraph(f"{igst_amount:.2f}", ParagraphStyle('TotalTax', parent=style_small, alignment=TA_RIGHT))])
         tax_data.append([Paragraph('<b>Total</b>', style_bold), Paragraph(f"<b>{invoice_data['subtotal']:.2f}</b>", ParagraphStyle('TotalValue', parent=style_bold, alignment=TA_RIGHT)), '', Paragraph(f"<b>{total_igst:.2f}</b>", ParagraphStyle('TotalTax', parent=style_bold, alignment=TA_RIGHT)), Paragraph(f"<b>{invoice_data['total_tax']:.2f}</b>", ParagraphStyle('GrandTotalTax', parent=style_bold, alignment=TA_RIGHT))])
-        col_widths = [33*mm, 53*mm, 20*mm, 27*mm, 25*mm]
+        col_widths = [20*mm, 53*mm, 27*mm, 35*mm, 45*mm]
     else:
         tax_data.append([Paragraph('<b>HSN/SAC</b>', style_bold), Paragraph('<b>Taxable<br/>Value</b>', ParagraphStyle('TaxHeader', parent=style_bold, alignment=TA_CENTER)), Paragraph('<b>Central Tax</b>', ParagraphStyle('TaxHeader', parent=style_bold, alignment=TA_CENTER)), '', Paragraph('<b>State Tax</b>', ParagraphStyle('TaxHeader', parent=style_bold, alignment=TA_CENTER)), '', Paragraph('<b>Total<br/>Tax Amount</b>', ParagraphStyle('TaxHeader', parent=style_bold, alignment=TA_CENTER))])
         tax_data.append(['', '', Paragraph('<b>Rate</b>', style_bold), Paragraph('<b>Amount</b>', style_bold), Paragraph('<b>Rate</b>', style_bold), Paragraph('<b>Amount</b>', style_bold), ''])
