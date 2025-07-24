@@ -269,10 +269,11 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
         Paragraph('<b>0.00</b>', ParagraphStyle('RoundOff', parent=style_bold, alignment=TA_RIGHT))
     ])
     
+    # FIXED: Using "Rs." instead of rupee symbol to avoid encoding issues
     items_data.append([
         '', '', '', '', '', '',
         Paragraph('<b>Total</b>', style_bold),
-        Paragraph(f"<b>₹ {invoice_data['grand_total']:.2f}</b>", ParagraphStyle('GrandTotal', parent=style_bold, alignment=TA_RIGHT))
+        Paragraph(f"<b>Rs. {invoice_data['grand_total']:.2f}</b>", ParagraphStyle('GrandTotal', parent=style_bold, alignment=TA_RIGHT))
     ])
     
     items_table = Table(items_data, colWidths=[13*mm, 53*mm, 20*mm, 15*mm, 22*mm, 20*mm, 12*mm, 25*mm])
@@ -365,12 +366,9 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
     tax_words_height = tax_words_table._height
     tax_words_table.drawOn(c, left_margin, tax_words_y_start - tax_words_height)
     
-    # --- MODIFIED SECTION START ---
-
     # 9. Declaration and Signature Table (SEPARATE TABLE BELOW TAX TABLE)
     declaration_y_start = tax_words_y_start - tax_words_height - 0.5*mm
     
-    # MODIFIED: Reduced the number of <br/> tags to shrink the signature gap.
     declaration_data = [
         [
             Paragraph("Declaration: We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.", style_normal),
@@ -378,7 +376,6 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
         ]
     ]
     
-    # MODIFIED: Removed the fixed row height to allow the table to size naturally.
     declaration_table = Table(declaration_data, colWidths=[120*mm, 60*mm])
     declaration_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
@@ -391,16 +388,11 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
     declaration_table.wrapOn(c, width, height)
     declaration_table_height = declaration_table._height
 
-    # MODIFIED: Adjusted the positioning logic to anchor the table closer to the bottom.
-    # It will be placed right after the content above it, but no lower than 15mm from the bottom,
-    # which aligns it better with the footer text.
     position_after_content = declaration_y_start - declaration_table_height
     bottom_anchor_position = 15 * mm 
     declaration_position = max(position_after_content, bottom_anchor_position)
     
     declaration_table.drawOn(c, left_margin, declaration_position)
-    
-    # --- MODIFIED SECTION END ---
 
     # 10. Computer Generated Invoice Text - At the very bottom
     footer_text_y = 12*mm
