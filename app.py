@@ -447,6 +447,20 @@ def generate_invoice():
         po_number = request.form.get('po_number', '')
         invoice_date = request.form.get('invoice_date')
         
+        # Convert the date format from YYYY-MM-DD to DD/MM/YYYY for display
+        if invoice_date:
+            try:
+                # Parse the date from HTML date input (YYYY-MM-DD format)
+                date_obj = datetime.datetime.strptime(invoice_date, '%Y-%m-%d')
+                # Format it as DD/MM/YYYY for the invoice
+                formatted_date = date_obj.strftime('%d/%m/%Y')
+            except ValueError:
+                # Fallback to current date if parsing fails
+                formatted_date = datetime.datetime.now().strftime('%d/%m/%Y')
+        else:
+            # Use current date if no date provided
+            formatted_date = datetime.datetime.now().strftime('%d/%m/%Y')
+        
         # Find client
         client_row = clients_df[clients_df['Company Name'] == client_name]
         if client_row.empty:
@@ -483,10 +497,10 @@ def generate_invoice():
         # Calculate invoice
         invoice_data = calculate_invoice(client, items, pricing_df)
         
-        # Generate PDF
+        # Generate PDF - Use the formatted date from form input
         transactional_details = {
             'invoice_no': invoice_no,
-            'invoice_date': datetime.datetime.now().strftime('%d/%m/%Y'),
+            'invoice_date': formatted_date,  # Use the date from form instead of current date
             'po_number': po_number
         }
         
