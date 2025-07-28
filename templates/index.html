@@ -90,13 +90,13 @@
         background: #6c757d;
         cursor: not-allowed;
       }
-      
+
       .loading {
         text-align: center;
         padding: 20px;
         color: #666;
       }
-      
+
       .no-products {
         text-align: center;
         padding: 20px;
@@ -187,13 +187,18 @@
           <input type="text" id="po_number" name="po_number" />
         </div>
 
+        <div class="form-group">
+          <label for="invoice_date">Invoice Date:</label>
+          <input type="date" id="invoice_date" name="invoice_date" required />
+        </div>
+
         <h2>2. Select Products and Quantities</h2>
         <div id="productsContainer">
           <div class="no-products">
             Please select a client first to see available products.
           </div>
         </div>
-        
+
         <br />
         <button type="submit" class="submit-btn" id="submitBtn" disabled>
           Generate PDF Invoice
@@ -202,43 +207,47 @@
     </div>
 
     <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        const clientSelect = document.getElementById('client');
-        const productsContainer = document.getElementById('productsContainer');
-        const submitBtn = document.getElementById('submitBtn');
-        
-        clientSelect.addEventListener('change', function() {
+      document.addEventListener("DOMContentLoaded", function () {
+        const clientSelect = document.getElementById("client");
+        const productsContainer = document.getElementById("productsContainer");
+        const submitBtn = document.getElementById("submitBtn");
+
+        clientSelect.addEventListener("change", function () {
           const selectedClient = this.value;
-          
+
           if (!selectedClient) {
-            productsContainer.innerHTML = '<div class="no-products">Please select a client first to see available products.</div>';
+            productsContainer.innerHTML =
+              '<div class="no-products">Please select a client first to see available products.</div>';
             submitBtn.disabled = true;
             return;
           }
-          
+
           // Show loading state
-          productsContainer.innerHTML = '<div class="loading">Loading products...</div>';
+          productsContainer.innerHTML =
+            '<div class="loading">Loading products...</div>';
           submitBtn.disabled = true;
-          
+
           // Fetch company-specific products
           fetch(`/api/company-products/${encodeURIComponent(selectedClient)}`)
-            .then(response => response.json())
-            .then(data => {
+            .then((response) => response.json())
+            .then((data) => {
               if (data.success && data.products.length > 0) {
                 displayProducts(data.products);
                 submitBtn.disabled = false;
               } else {
-                productsContainer.innerHTML = '<div class="no-products">No products available for this client.</div>';
+                productsContainer.innerHTML =
+                  '<div class="no-products">No products available for this client.</div>';
                 submitBtn.disabled = true;
               }
             })
-            .catch(error => {
-              console.error('Error fetching products:', error);
-              productsContainer.innerHTML = '<div class="no-products">Error loading products. Please try again.</div>';
+            .catch((error) => {
+              console.error("Error fetching products:", error);
+              productsContainer.innerHTML =
+                '<div class="no-products">Error loading products. Please try again.</div>';
               submitBtn.disabled = true;
             });
         });
-        
+
         function displayProducts(products) {
           let tableHTML = `
             <table class="product-table">
@@ -252,7 +261,7 @@
               </thead>
               <tbody>
           `;
-          
+
           products.forEach((product, index) => {
             tableHTML += `
               <tr>
@@ -276,32 +285,36 @@
               </tr>
             `;
           });
-          
+
           tableHTML += `
               </tbody>
             </table>
           `;
-          
+
           productsContainer.innerHTML = tableHTML;
         }
-        
+
         // Form validation before submit
-        document.getElementById('invoiceForm').addEventListener('submit', function(e) {
-          const quantities = document.querySelectorAll('.quantity-input');
-          let hasQuantity = false;
-          
-          quantities.forEach(input => {
-            if (input.value && parseFloat(input.value) > 0) {
-              hasQuantity = true;
+        document
+          .getElementById("invoiceForm")
+          .addEventListener("submit", function (e) {
+            const quantities = document.querySelectorAll(".quantity-input");
+            let hasQuantity = false;
+
+            quantities.forEach((input) => {
+              if (input.value && parseFloat(input.value) > 0) {
+                hasQuantity = true;
+              }
+            });
+
+            if (!hasQuantity) {
+              e.preventDefault();
+              alert(
+                "Please enter at least one product quantity greater than 0."
+              );
+              return false;
             }
           });
-          
-          if (!hasQuantity) {
-            e.preventDefault();
-            alert('Please enter at least one product quantity greater than 0.');
-            return false;
-          }
-        });
       });
     </script>
   </body>

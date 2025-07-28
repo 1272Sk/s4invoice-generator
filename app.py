@@ -445,6 +445,7 @@ def generate_invoice():
         client_name = request.form.get('client')
         invoice_no = request.form.get('invoice_no')
         po_number = request.form.get('po_number', '')
+        invoice_date = request.form.get('invoice_date')
         
         # Find client
         client_row = clients_df[clients_df['Company Name'] == client_name]
