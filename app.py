@@ -225,15 +225,19 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
     
     valid_items = [item for item in invoice_data['items'] if item['error'] is None]
     for i, item in enumerate(valid_items):
+        # Format amounts with paise (2 decimal places) - no rupee symbol for individual items
+        rate_formatted = f"{item['rate']:.2f}"
+        amount_formatted = f"{item['amount']:.2f}"
+        
         items_data.append([
             Paragraph(str(i + 1), style_normal),
             Paragraph(item['description'], style_normal),
             Paragraph(item['hsn_sac'], style_normal),
             Paragraph(f"{item['gst_rate']:.0f}%", style_normal),
             Paragraph(f"{item['quantity']:.0f} {item['unit']}", style_normal),
-            Paragraph(f"{item['rate']:.2f}", ParagraphStyle('Rate', parent=style_normal, alignment=TA_RIGHT)),
+            Paragraph(rate_formatted, ParagraphStyle('Rate', parent=style_normal, alignment=TA_RIGHT)),
             Paragraph(item['unit'], style_normal),
-            Paragraph(f"{item['amount']:.2f}", ParagraphStyle('Amount', parent=style_normal, alignment=TA_RIGHT))
+            Paragraph(amount_formatted, ParagraphStyle('Amount', parent=style_normal, alignment=TA_RIGHT))
         ])
     
     while len(items_data) < 6:
@@ -241,7 +245,7 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
     
     items_data.append([
         '', '', '', '', '', '', '',
-        Paragraph(f"<b>{invoice_data['subtotal']:.2f}</b>", ParagraphStyle('Subtotal', parent=style_bold, alignment=TA_RIGHT))
+        Paragraph(f"{invoice_data['subtotal']:.2f}", ParagraphStyle('Subtotal', parent=style_normal, alignment=TA_RIGHT))
     ])
     
     total_cgst = sum(b.get('cgst_amount', 0) for b in invoice_data['tax_details'].get('breakdown', []))
@@ -252,27 +256,26 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
         items_data.append([
             '', '', '', '', '', '',
             Paragraph('<b>Input IGST</b>', ParagraphStyle('InputIGST', parent=style_bold, fontSize=7)),
-            Paragraph(f"<b>{total_igst:.2f}</b>", ParagraphStyle('Tax', parent=style_bold, alignment=TA_RIGHT))
+            Paragraph(f"{total_igst:.2f}", ParagraphStyle('Tax', parent=style_normal, alignment=TA_RIGHT))
         ])
     else:
         items_data.append([
             '', '', '', '', '', '',
-            Paragraph('<b>InputCGST</b>', ParagraphStyle('InputCGST', parent=style_bold, fontSize=7)),
-            Paragraph(f"<b>{total_cgst:.2f}</b>", ParagraphStyle('Tax', parent=style_bold, alignment=TA_RIGHT))
+            Paragraph('<b>Input CGST</b>', ParagraphStyle('InputCGST', parent=style_bold, fontSize=7)),
+            Paragraph(f"{total_cgst:.2f}", ParagraphStyle('Tax', parent=style_normal, alignment=TA_RIGHT))
         ])
         items_data.append([
             '', '', '', '', '', '',
             Paragraph('<b>Input SGST</b>', ParagraphStyle('InputSGST', parent=style_bold, fontSize=7)),
-            Paragraph(f"<b>{total_sgst:.2f}</b>", ParagraphStyle('Tax', parent=style_bold, alignment=TA_RIGHT))
+            Paragraph(f"{total_sgst:.2f}", ParagraphStyle('Tax', parent=style_normal, alignment=TA_RIGHT))
         ])
     
     items_data.append([
         '', '', '', '', '', '',
         Paragraph('<b>Round Off</b>', style_bold),
-        Paragraph('<b>0.00</b>', ParagraphStyle('RoundOff', parent=style_bold, alignment=TA_RIGHT))
+        Paragraph('0.00', ParagraphStyle('RoundOff', parent=style_normal, alignment=TA_RIGHT))
     ])
     
-    # Using "Rs." instead of rupee symbol to avoid encoding issues
     items_data.append([
         '', '', '', '', '', '',
         Paragraph('<b>Total</b>', style_bold),
@@ -300,24 +303,59 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
     words_y_start = items_y_start - items_height - 0.5*mm
     
     def convert_to_indian_words(amount):
-        amount = int(amount)
-        if amount == 0: return "Zero"
+        # Split into rupees and paise
+        rupees = int(amount)
+        paise = int(round((amount - rupees) * 100))
+        
+        if rupees == 0 and paise == 0:
+            return "Zero"
+        
         ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"]
         tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"]
+        
         def convert_hundreds(n):
             result = ""
-            if n >= 100: result += ones[n // 100] + " Hundred "; n %= 100
-            if n >= 20: result += tens[n // 10] + " "; n %= 10
-            if n > 0: result += ones[n] + " "
+            if n >= 100: 
+                result += ones[n // 100] + " Hundred "
+                n %= 100
+            if n >= 20: 
+                result += tens[n // 10] + " "
+                n %= 10
+            if n > 0: 
+                result += ones[n] + " "
             return result.strip()
+        
         result = ""
-        if amount >= 10000000: result += convert_hundreds(amount // 10000000) + " Crore "; amount %= 10000000
-        if amount >= 100000: result += convert_hundreds(amount // 100000) + " Lakh "; amount %= 100000
-        if amount >= 1000: result += convert_hundreds(amount // 1000) + " Thousand "; amount %= 1000
-        if amount > 0: result += convert_hundreds(amount)
+        
+        # Convert rupees
+        if rupees >= 10000000: 
+            result += convert_hundreds(rupees // 10000000) + " Crore "
+            rupees %= 10000000
+        if rupees >= 100000: 
+            result += convert_hundreds(rupees // 100000) + " Lakh "
+            rupees %= 100000
+        if rupees >= 1000: 
+            result += convert_hundreds(rupees // 1000) + " Thousand "
+            rupees %= 1000
+        if rupees > 0: 
+            result += convert_hundreds(rupees)
+        
+        # Add "Rupees" if there are rupees
+        if int(amount) > 0:
+            result = result.strip() + " Rupees"
+        
+        # Add paise if present
+        if paise > 0:
+            if int(amount) > 0:
+                result += " and "
+            result += convert_hundreds(paise).strip() + " Paise"
+        
+        # Add "Only" at the end
+        result += " Only"
+        
         return result.strip()
 
-    total_in_words = convert_to_indian_words(invoice_data['grand_total']) + " Rupees Only"
+    total_in_words = convert_to_indian_words(invoice_data['grand_total'])
     
     words_data = [[Paragraph(f"<b>Amount Chargeable (in words)</b><br/>INR {total_in_words}", style_normal), Paragraph('<b>E. & O.E</b>', ParagraphStyle('EOE', parent=style_normal, alignment=TA_RIGHT))]]
     words_table = Table(words_data, colWidths=[140*mm, 40*mm])
@@ -360,7 +398,7 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
 
     # 8. Tax Amount in Words Table
     tax_words_y_start = tax_table_y_start - tax_table_height - 0.5*mm
-    tax_in_words = convert_to_indian_words(invoice_data['total_tax']) + " Rupees Only"
+    tax_in_words = convert_to_indian_words(invoice_data['total_tax'])
     tax_words_data = [[Paragraph(f"<b>Tax Amount (in words): INR</b><br/>{tax_in_words}", style_normal), Paragraph(f"<b>Company's Bank Details</b><br/>Bank Name: {YOUR_COMPANY_DETAILS['bank_name']}<br/>A/c No. {YOUR_COMPANY_DETAILS['account_no']}<br/>Branch & IFS Code: {YOUR_COMPANY_DETAILS['ifsc_code']}", style_normal)]]
     tax_words_table = Table(tax_words_data, colWidths=[100*mm, 80*mm])
     tax_words_table.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 1, colors.black), ('VALIGN', (0,0), (-1,-1), 'TOP'), ('LEFTPADDING', (0,0), (-1,-1), 3), ('RIGHTPADDING', (0,0), (-1,-1), 3), ('TOPPADDING', (0,0), (-1,-1), 2), ('BOTTOMPADDING', (0,0), (-1,-1), 2)]))
