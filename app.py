@@ -86,11 +86,24 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
     
     left_margin, right_margin, top_margin, bottom_margin = 15*mm, 15*mm, 5*mm, 35*mm
     
-    # 1. Header - Title (Tax Invoice or SEZ Invoice based on client tax type)
+    # 1. Header - Title based on LayoutTemplate and TaxType
     c.setFont('Helvetica-Bold', 16)
-    if client.get('TaxType') == 'IGST':
+    
+    # Check conditions for invoice header
+    layout_template = client.get('LayoutTemplate', '')
+    tax_type = client.get('TaxType', '')
+    
+    if layout_template == 'SEZ' and tax_type == 'IGST':
+        # Condition 3: SEZ Invoice with IGST
         c.drawCentredString(width / 2.0, height - top_margin - 0*mm, "SEZ Invoice")
+    elif layout_template == 'Standard' and tax_type == 'IGST':
+        # Condition 2: Tax Invoice with IGST
+        c.drawCentredString(width / 2.0, height - top_margin - 0*mm, "Tax Invoice")
+    elif layout_template == 'Standard' and tax_type == 'CGST_SGST':
+        # Condition 1: Tax Invoice with CGST/SGST
+        c.drawCentredString(width / 2.0, height - top_margin - 0*mm, "Tax Invoice")
     else:
+        # Default fallback
         c.drawCentredString(width / 2.0, height - top_margin - 0*mm, "Tax Invoice")
     
     # 2. Company Name and Invoice Details Header
@@ -252,13 +265,16 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
     total_sgst = sum(b.get('sgst_amount', 0) for b in invoice_data['tax_details'].get('breakdown', []))
     total_igst = sum(b.get('igst_amount', 0) for b in invoice_data['tax_details'].get('breakdown', []))
     
-    if client.get('TaxType') == 'IGST':
+    # Tax rows based on conditions
+    if (layout_template == 'SEZ' and tax_type == 'IGST') or (layout_template == 'Standard' and tax_type == 'IGST'):
+        # Conditions 2 & 3: Show IGST
         items_data.append([
             '', '', '', '', '', '',
             Paragraph('<b>Input IGST</b>', ParagraphStyle('InputIGST', parent=style_bold, fontSize=7)),
             Paragraph(f"{total_igst:.2f}", ParagraphStyle('Tax', parent=style_normal, alignment=TA_RIGHT))
         ])
-    else:
+    elif layout_template == 'Standard' and tax_type == 'CGST_SGST':
+        # Condition 1: Show CGST/SGST
         items_data.append([
             '', '', '', '', '', '',
             Paragraph('<b>Input CGST</b>', ParagraphStyle('InputCGST', parent=style_bold, fontSize=7)),
@@ -268,6 +284,13 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
             '', '', '', '', '', '',
             Paragraph('<b>Input SGST</b>', ParagraphStyle('InputSGST', parent=style_bold, fontSize=7)),
             Paragraph(f"{total_sgst:.2f}", ParagraphStyle('Tax', parent=style_normal, alignment=TA_RIGHT))
+        ])
+    else:
+        # Default fallback - show IGST
+        items_data.append([
+            '', '', '', '', '', '',
+            Paragraph('<b>Input IGST</b>', ParagraphStyle('InputIGST', parent=style_bold, fontSize=7)),
+            Paragraph(f"{total_igst:.2f}", ParagraphStyle('Tax', parent=style_normal, alignment=TA_RIGHT))
         ])
     
     items_data.append([
@@ -367,7 +390,10 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
     # 7. Tax Breakdown Table
     tax_table_y_start = words_y_start - words_height - 0.5*mm
     tax_data = []
-    if client.get('TaxType') == 'IGST':
+    
+    # Tax table structure based on conditions
+    if (layout_template == 'SEZ' and tax_type == 'IGST') or (layout_template == 'Standard' and tax_type == 'IGST'):
+        # Conditions 2 & 3: IGST table structure
         tax_data.append([Paragraph('<b>HSN/SAC</b>', style_bold), Paragraph('<b>Taxable<br/>Value</b>', ParagraphStyle('TaxHeader', parent=style_bold, alignment=TA_CENTER)), Paragraph('<b>Integrated Tax</b>', ParagraphStyle('TaxHeader', parent=style_bold, alignment=TA_CENTER)), '', Paragraph('<b>Total<br/>Tax Amount</b>', ParagraphStyle('TaxHeader', parent=style_bold, alignment=TA_CENTER))])
         tax_data.append(['', '', Paragraph('<b>Rate</b>', style_bold), Paragraph('<b>Amount</b>', style_bold), ''])
         for item in valid_items:
@@ -376,7 +402,8 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
             tax_data.append([Paragraph(hsn, style_small), Paragraph(f"{taxable_value:.2f}", ParagraphStyle('TaxValue', parent=style_small, alignment=TA_RIGHT)), Paragraph(f"{tax_rate:.1f}%", ParagraphStyle('TaxRate', parent=style_small, alignment=TA_CENTER)), Paragraph(f"{igst_amount:.2f}", ParagraphStyle('TaxAmount', parent=style_small, alignment=TA_RIGHT)), Paragraph(f"{igst_amount:.2f}", ParagraphStyle('TotalTax', parent=style_small, alignment=TA_RIGHT))])
         tax_data.append([Paragraph('<b>Total</b>', style_bold), Paragraph(f"<b>{invoice_data['subtotal']:.2f}</b>", ParagraphStyle('TotalValue', parent=style_bold, alignment=TA_RIGHT)), '', Paragraph(f"<b>{total_igst:.2f}</b>", ParagraphStyle('TotalTax', parent=style_bold, alignment=TA_RIGHT)), Paragraph(f"<b>{invoice_data['total_tax']:.2f}</b>", ParagraphStyle('GrandTotalTax', parent=style_bold, alignment=TA_RIGHT))])
         col_widths = [20*mm, 53*mm, 27*mm, 35*mm, 45*mm]
-    else:
+    elif layout_template == 'Standard' and tax_type == 'CGST_SGST':
+        # Condition 1: CGST/SGST table structure
         tax_data.append([Paragraph('<b>HSN/SAC</b>', style_bold), Paragraph('<b>Taxable<br/>Value</b>', ParagraphStyle('TaxHeader', parent=style_bold, alignment=TA_CENTER)), Paragraph('<b>Central Tax</b>', ParagraphStyle('TaxHeader', parent=style_bold, alignment=TA_CENTER)), '', Paragraph('<b>State Tax</b>', ParagraphStyle('TaxHeader', parent=style_bold, alignment=TA_CENTER)), '', Paragraph('<b>Total<br/>Tax Amount</b>', ParagraphStyle('TaxHeader', parent=style_bold, alignment=TA_CENTER))])
         tax_data.append(['', '', Paragraph('<b>Rate</b>', style_bold), Paragraph('<b>Amount</b>', style_bold), Paragraph('<b>Rate</b>', style_bold), Paragraph('<b>Amount</b>', style_bold), ''])
         for item in valid_items:
@@ -387,10 +414,28 @@ def generate_pdf_invoice(client, invoice_data, transactional_details):
             tax_data.append([Paragraph(hsn, style_small), Paragraph(f"{taxable_value:.2f}", ParagraphStyle('TaxValue', parent=style_small, alignment=TA_RIGHT)), Paragraph(f"{cgst_rate:.1f}%", ParagraphStyle('TaxRate', parent=style_small, alignment=TA_CENTER)), Paragraph(f"{cgst_amount:.2f}", ParagraphStyle('TaxAmount', parent=style_small, alignment=TA_RIGHT)), Paragraph(f"{sgst_rate:.1f}%", ParagraphStyle('TaxRate', parent=style_small, alignment=TA_CENTER)), Paragraph(f"{sgst_amount:.2f}", ParagraphStyle('TaxAmount', parent=style_small, alignment=TA_RIGHT)), Paragraph(f"{total_tax_amount:.2f}", ParagraphStyle('TotalTax', parent=style_small, alignment=TA_RIGHT))])
         tax_data.append([Paragraph('<b>Total</b>', style_bold), Paragraph(f"<b>{invoice_data['subtotal']:.2f}</b>", ParagraphStyle('TotalValue', parent=style_bold, alignment=TA_RIGHT)), '', Paragraph(f"<b>{total_cgst:.2f}</b>", ParagraphStyle('TotalTax', parent=style_bold, alignment=TA_RIGHT)), '', Paragraph(f"<b>{total_sgst:.2f}</b>", ParagraphStyle('TotalTax', parent=style_bold, alignment=TA_RIGHT)), Paragraph(f"<b>{invoice_data['total_tax']:.2f}</b>", ParagraphStyle('GrandTotalTax', parent=style_bold, alignment=TA_RIGHT))])
         col_widths = [33*mm, 53*mm, 15*mm, 22*mm, 15*mm, 20*mm, 22*mm]
+    else:
+        # Default fallback - IGST structure
+        tax_data.append([Paragraph('<b>HSN/SAC</b>', style_bold), Paragraph('<b>Taxable<br/>Value</b>', ParagraphStyle('TaxHeader', parent=style_bold, alignment=TA_CENTER)), Paragraph('<b>Integrated Tax</b>', ParagraphStyle('TaxHeader', parent=style_bold, alignment=TA_CENTER)), '', Paragraph('<b>Total<br/>Tax Amount</b>', ParagraphStyle('TaxHeader', parent=style_bold, alignment=TA_CENTER))])
+        tax_data.append(['', '', Paragraph('<b>Rate</b>', style_bold), Paragraph('<b>Amount</b>', style_bold), ''])
+        for item in valid_items:
+            hsn, taxable_value, tax_rate = item['hsn_sac'], item['amount'], item['gst_rate']
+            igst_amount = taxable_value * (tax_rate / 100)
+            tax_data.append([Paragraph(hsn, style_small), Paragraph(f"{taxable_value:.2f}", ParagraphStyle('TaxValue', parent=style_small, alignment=TA_RIGHT)), Paragraph(f"{tax_rate:.1f}%", ParagraphStyle('TaxRate', parent=style_small, alignment=TA_CENTER)), Paragraph(f"{igst_amount:.2f}", ParagraphStyle('TaxAmount', parent=style_small, alignment=TA_RIGHT)), Paragraph(f"{igst_amount:.2f}", ParagraphStyle('TotalTax', parent=style_small, alignment=TA_RIGHT))])
+        tax_data.append([Paragraph('<b>Total</b>', style_bold), Paragraph(f"<b>{invoice_data['subtotal']:.2f}</b>", ParagraphStyle('TotalValue', parent=style_bold, alignment=TA_RIGHT)), '', Paragraph(f"<b>{total_igst:.2f}</b>", ParagraphStyle('TotalTax', parent=style_bold, alignment=TA_RIGHT)), Paragraph(f"<b>{invoice_data['total_tax']:.2f}</b>", ParagraphStyle('GrandTotalTax', parent=style_bold, alignment=TA_RIGHT))])
+        col_widths = [20*mm, 53*mm, 27*mm, 35*mm, 45*mm]
+    
     tax_table = Table(tax_data, colWidths=col_widths)
     tax_style = TableStyle([('GRID', (0,0), (-1,-1), 1, colors.black), ('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('FONTSIZE', (0,0), (-1,-1), 7), ('TOPPADDING', (0,0), (-1,-1), 2), ('BOTTOMPADDING', (0,0), (-1,-1), 2), ('SPAN', (0,0), (0,1)), ('SPAN', (1,0), (1,1)), ('SPAN', (-1,0), (-1,1))])
-    if client.get('TaxType') == 'IGST': tax_style.add('SPAN', (2,0), (3,0))
-    else: tax_style.add('SPAN', (2,0), (3,0)); tax_style.add('SPAN', (4,0), (5,0))
+    
+    if layout_template == 'Standard' and tax_type == 'CGST_SGST':
+        # CGST/SGST spans
+        tax_style.add('SPAN', (2,0), (3,0))
+        tax_style.add('SPAN', (4,0), (5,0))
+    else:
+        # IGST spans
+        tax_style.add('SPAN', (2,0), (3,0))
+    
     tax_table.setStyle(tax_style)
     tax_table.wrapOn(c, width, height)
     tax_table_height = tax_table._height
